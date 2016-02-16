@@ -61,22 +61,44 @@ class GuzzleHttpDataCollector extends DataCollector
         if ($statusCode > 399 && $statusCode < 500) {
             $this->data['guzzleHttp']['has4x'] = true;
         }
+        
+        $request->getBody()->rewind();
+        $response->getBody()->rewind();
 
         $data = [
-            'uri' => $request->getUri(),
+            'uri' => $request->getUri() . "",
             'method' => $request->getMethod(),
             'responseCode' => $statusCode,
             'responseReason' => $response->getReasonPhrase(),
             'executionTime' => $event->getExecutionTime(),
+            'requestBody' => $request->getBody()->getContents(),
+            'responseBody' => $response->getBody()->getContents(),
+            'requestHeaders' => $request->getHeaders(),
+            'responseHeaders' => $response->getHeaders(),
             'curl' => [
                 'redirectCount' => (isset($response->curlInfo['redirect_count'])) ? $response->curlInfo['redirect_count'] : 0,
                 'redirectTime' => (isset($response->curlInfo['redirect_time'])) ? $response->curlInfo['redirect_time'] : 0
             ],
             'cache' => (isset($response->cached)) ? 1 : 0,
             'cacheTtl' => (isset($response->cacheTtl)) ? $response->cacheTtl : 0
-
         ];
+        
+        if (in_array("application/json", $request->getHeader("Content-Type"))) {
+            try {
+                $data["requestBody"] = json_encode(json_decode($data["requestBody"]), JSON_PRETTY_PRINT);
+            } catch (Exception $ex) {
+                // ignore exception, leave it as a string.
+            }
+        }
 
+        if (in_array("application/json", $response->getHeader("Content-Type"))) {
+            try {
+                $data["responseBody"] = json_encode(json_decode($data["responseBody"]), JSON_PRETTY_PRINT);
+            } catch (Exception $ex) {
+                // ignore exception, leave it as a string.
+            }
+        }
+        
         $this->data['guzzleHttp']['commands']->enqueue($data);
     }
 
